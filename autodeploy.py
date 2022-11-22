@@ -25,7 +25,7 @@ class Repo:
 		return subprocess.check_output(['git', 'pull'], cwd = f'{"/".join(os.getcwd().split("/")[:-1])}/{self.name}').decode('UTF-8')
 
 	def run(self):
-		runningRepos[curRepo.name] = subprocess.Popen(self.runCmd, cwd = self.getWorkingDir(), stdout = subprocess.DEVNULL)
+		runningRepos[curRepo.name] = subprocess.Popen(self.runCmd, cwd = self.getWorkingDir(), stdout = subprocess.DEVNULL, shell = True) # https://stackoverflow.com/questions/18962785/oserror-errno-2-no-such-file-or-directory-while-using-python-subprocess-wit
 
 def sendDiscord(toSend):
 	def sendDiscordPart(partToSend):
