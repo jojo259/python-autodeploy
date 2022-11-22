@@ -7,7 +7,6 @@ import config
 
 deployedEventIds = {}
 
-backslashChar = '\\' # because i like f-strings and SyntaxError: f-string expression part cannot include a backslash
 newLineChar = '\n'
 
 class Repo:
@@ -16,14 +15,14 @@ class Repo:
 		self.runCmd = runCmd
 
 	def getWorkingDir(self):
-		return f'{backslashChar.join(os.getcwd().split(backslashChar)[:-1])}{backslashChar}{self.name}'
+		return f'{"/".join(os.getcwd().split("/")[:-1])}{"/"}{self.name}'
 
 	def getdeps(self):
 		depsCommand = subprocess.Popen(['pip', 'install', '-r', 'requirements.txt'], cwd = self.getWorkingDir())
 		depsCommand.wait()
 
 	def pull(self):
-		return subprocess.check_output(['git', 'pull'], cwd = f'{backslashChar.join(os.getcwd().split(backslashChar)[:-1])}/{self.name}').decode('UTF-8')
+		return subprocess.check_output(['git', 'pull'], cwd = f'{"/".join(os.getcwd().split("/")[:-1])}/{self.name}').decode('UTF-8')
 
 	def run(self):
 		runningRepos[curRepo.name] = subprocess.Popen(self.runCmd, cwd = self.getWorkingDir(), stdout = subprocess.DEVNULL)
