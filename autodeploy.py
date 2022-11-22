@@ -15,14 +15,18 @@ class Repo:
 		self.runCmd = runCmd
 
 	def getWorkingDir(self):
-		return f'{"/".join(os.getcwd().split("/")[:-1])}{"/"}{self.name}'
+		return f'../{self.name}'
 
 	def getdeps(self):
 		depsCommand = subprocess.Popen(['pip', 'install', '-r', 'requirements.txt'], cwd = self.getWorkingDir())
 		depsCommand.wait()
 
 	def pull(self):
-		return subprocess.check_output(['git', 'pull'], cwd = f'{"/".join(os.getcwd().split("/")[:-1])}/{self.name}').decode('UTF-8')
+		repoWorkingDir = self.getWorkingDir()
+		if not os.path.isdir(repoWorkingDir): # if repo directory doesn't already exist then clone instead of pulling
+			repoUrl = f'https://github.com/{config.githubUsername}/{self.name}'
+			return subprocess.check_output(['git', 'clone', repoUrl], cwd = f'../').decode('UTF-8')
+		return subprocess.check_output(['git', 'pull'], cwd = repoWorkingDir).decode('UTF-8')
 
 	def run(self):
 		runningRepos[curRepo.name] = subprocess.Popen(self.runCmd, cwd = self.getWorkingDir(), stdout = subprocess.DEVNULL, shell = True) # https://stackoverflow.com/questions/18962785/oserror-errno-2-no-such-file-or-directory-while-using-python-subprocess-wit
@@ -44,9 +48,15 @@ def sendDiscord(toSend):
 	for i in range(int(len(toSend) / 2000) + 1):
 		sendDiscordPart(toSend[i * 2000:i* 2000 + 2000])
 
+if not os.path.exists('todeploy.txt'):
+	with open('todeploy.txt', 'w') as toDeployFile:
+		toDeployFile.write('repo-name,run command')
+	print('no todeploy.txt config file found. generated todeploy.txt\nplease edit and re-run program\nexiting')
+	exit()
+
 reposToDeploy = {}
 
-with open('todeploy.txt') as toDeployFile:
+with open('todeploy.txt', 'r') as toDeployFile:
 	reposData = toDeployFile.read().splitlines()
 	for curRepoData in reposData:
 		curRepoDataSplit = curRepoData.split(',')

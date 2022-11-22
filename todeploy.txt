@@ -1,1 +1,1 @@
-repo-name,run command
+hackernews-scan,python run.py
