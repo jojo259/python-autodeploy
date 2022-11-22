@@ -78,7 +78,6 @@ print('ran repos')
 
 while True:
 	time.sleep(60)
-	print('checking for deploy updates')
 
 	reqHeaders = {'Authorization': f'token {config.githubToken}'}
 	eventsApi = requests.get(f'https://api.github.com/users/{config.githubUsername}/events', headers = reqHeaders, timeout = 30).json()
