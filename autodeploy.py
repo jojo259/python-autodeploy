@@ -76,6 +76,8 @@ for curRepoName, curRepo in reposToDeploy.items():
 
 print('ran repos')
 
+sendDiscord(f'```autodeploy started```')
+
 while True:
 	time.sleep(60)
 
