@@ -17,7 +17,7 @@ class Repo:
 	def getWorkingDir(self):
 		return f'../{self.name}'
 
-	def getdeps(self):
+	def getDeps(self):
 		depsCommand = subprocess.Popen(['pip', 'install', '-r', 'requirements.txt'], cwd = self.getWorkingDir())
 		depsCommand.wait()
 
@@ -70,7 +70,7 @@ for curRepoName, curRepo in reposToDeploy.items():
 	print(f'pulling {curRepo.name}')
 	print(curRepo.pull())
 	print(f'installing dependencies for {curRepo.name}')
-	curRepo.getdeps()
+	curRepo.getDeps()
 	print(f'running {curRepo.name}')
 	curRepo.run()
 
@@ -78,50 +78,56 @@ print('ran repos')
 
 sendDiscord(f'```autodeploy started```')
 
-while True:
-	time.sleep(60)
-
-	reqHeaders = {'Authorization': f'token {config.githubToken}'}
+def doLoop():
 	try:
-		eventsApi = requests.get(f'https://api.github.com/users/{config.githubUsername}/events', headers = reqHeaders, timeout = 30).json()
+		time.sleep(60)
+
+		reqHeaders = {'Authorization': f'token {config.githubToken}'}
+		try:
+			eventsApi = requests.get(f'https://api.github.com/users/{config.githubUsername}/events', headers = reqHeaders, timeout = 30).json()
+		except Exception as e:
+			print(f'get api failed {e}')
+			return
+
+		for curEvent in list(reversed(eventsApi))[-5:]:
+			if curEvent.get('id', '') in deployedEventIds:
+				return
+
+			if curEvent.get('type') != 'PushEvent':
+				return
+
+			repoName = curEvent.get('repo', {}).get('name', '').split("/")[1]
+
+			if repoName not in runningRepos:
+				return
+
+			deployedEventIds[curEvent.get('id', '')] = True
+
+			allCommits = []
+
+			for curCommit in curEvent.get('payload', {}).get('commits', []):
+				allCommits.append(' - ' + curCommit.get('message'))
+
+			commitsStr = '\n' + '\n'.join(allCommits)
+
+			logPre = f'git push detected for {repoName} at {curEvent.get("created_at", "[error: no time]")}: {commitsStr}'
+
+			print(logPre)
+			sendDiscord(f'```{logPre}```')
+
+			gitPulled = reposToDeploy[repoName].pull()
+
+			logPost = f'git push for {repoName} at {curEvent.get("created_at", "[error: no time]")}, git pull output:{newLineChar}{gitPulled}'
+
+			print(logPost)
+			sendDiscord(f'```{logPost}```')
+
+			curRepo.getDeps()
+
+			runningRepos[repoName].kill()
+			reposToDeploy[repoName].run()
 	except Exception as e:
-		print(f'get api failed {e}')
-		continue
+		sendDiscord(f'doLoop errored: {e}')
 
-	for curEvent in list(reversed(eventsApi))[-5:]:
-		if curEvent.get('id', '') in deployedEventIds:
-			continue
-
-		if curEvent.get('type') != 'PushEvent':
-			continue
-
-		repoName = curEvent.get('repo', {}).get('name', '').split("/")[1]
-
-		if repoName not in runningRepos:
-			continue
-
-		deployedEventIds[curEvent.get('id', '')] = True
-
-		allCommits = []
-
-		for curCommit in curEvent.get('payload', {}).get('commits', []):
-			allCommits.append(' - ' + curCommit.get('message'))
-
-		commitsStr = '\n' + '\n'.join(allCommits)
-
-		logPre = f'git push detected for {repoName} at {curEvent.get("created_at", "[error: no time]")}: {commitsStr}'
-
-		print(logPre)
-		sendDiscord(f'```{logPre}```')
-
-		gitPulled = reposToDeploy[repoName].pull()
-
-		logPost = f'git push for {repoName} at {curEvent.get("created_at", "[error: no time]")}, git pull output:{newLineChar}{gitPulled}'
-
-		print(logPost)
-		sendDiscord(f'```{logPost}```')
-
-		curRepo.getdeps()
-
-		runningRepos[repoName].kill()
-		reposToDeploy[repoName].run()
+while True:
+	doLoop()
