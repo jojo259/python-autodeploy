@@ -41,7 +41,7 @@ def sendDiscord(toSend):
 		try:
 			requests.post(url, json = data, headers={"Content-Type": "application/json"}, timeout = 30)
 		except requests.exceptions.RequestException as e:
-			print('sender failed probably timeout')
+			print(f'send discord failed probably timeout {e}')
 
 	toSend = str(toSend)
 	
@@ -82,7 +82,11 @@ while True:
 	time.sleep(60)
 
 	reqHeaders = {'Authorization': f'token {config.githubToken}'}
-	eventsApi = requests.get(f'https://api.github.com/users/{config.githubUsername}/events', headers = reqHeaders, timeout = 30).json()
+	try:
+		eventsApi = requests.get(f'https://api.github.com/users/{config.githubUsername}/events', headers = reqHeaders, timeout = 30).json()
+	except Exception as e:
+		print(f'get api failed {e}')
+		continue
 
 	for curEvent in list(reversed(eventsApi))[-5:]:
 		if curEvent.get('id', '') in deployedEventIds:
