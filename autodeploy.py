@@ -91,15 +91,15 @@ def doLoop():
 
 		for curEvent in list(reversed(eventsApi))[-5:]:
 			if curEvent.get('id', '') in deployedEventIds:
-				return
+				continue
 
 			if curEvent.get('type') != 'PushEvent':
-				return
+				continue
 
 			repoName = curEvent.get('repo', {}).get('name', '').split("/")[1]
 
 			if repoName not in runningRepos:
-				return
+				continue
 
 			deployedEventIds[curEvent.get('id', '')] = True
 
