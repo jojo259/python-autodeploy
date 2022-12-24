@@ -2,6 +2,7 @@ import subprocess
 import os
 import time
 import requests
+import signal
 
 import config
 
@@ -29,7 +30,7 @@ class Repo:
 		return subprocess.check_output(['git', 'pull'], cwd = repoWorkingDir).decode('UTF-8')
 
 	def run(self):
-		runningRepos[curRepo.name] = subprocess.Popen(self.runCmd, cwd = self.getWorkingDir(), stdout = subprocess.DEVNULL, shell = True) # https://stackoverflow.com/questions/18962785/oserror-errno-2-no-such-file-or-directory-while-using-python-subprocess-wit
+		runningRepos[curRepo.name] = subprocess.Popen(self.runCmd, cwd = self.getWorkingDir(), stdout = subprocess.DEVNULL, shell = True, preexec_fn = os.setsid) # https://stackoverflow.com/questions/18962785/oserror-errno-2-no-such-file-or-directory-while-using-python-subprocess-wit
 
 def sendDiscord(toSend):
 	def sendDiscordPart(partToSend):
@@ -124,7 +125,7 @@ def doLoop():
 
 			curRepo.getDeps()
 
-			runningRepos[repoName].kill()
+			os.killpg(os.getpgid(runningRepos[repoName].pid), signal.SIGTERM)
 			reposToDeploy[repoName].run()
 	except Exception as e:
 		sendDiscord(f'doLoop errored: {e}')
