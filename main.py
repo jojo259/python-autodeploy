@@ -5,6 +5,7 @@ import requests
 import signal
 
 import config
+import discordsender
 
 deployedEventIds = {}
 
