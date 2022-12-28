@@ -30,6 +30,11 @@ class Repo:
 		downloadPath = f'temp/repozips/{self.name}'
 		extractPath = f'temp/workingrepos/{self.name}'
 
+		# delete old workingrepo
+
+		if os.path.exists(extractPath):
+			shutil.rmtree(extractPath)
+
 		# download repo zip file
 
 		with open(downloadPath, 'wb') as downloadedZip:
@@ -161,7 +166,7 @@ def doLoop():
 			reposToDeploy[repoName].run()
 
 			deployedeventstorer.eventDeployed(curEvent.get('id', ''))
-			
+
 	except Exception as e:
 		printAndSendDiscord(f'doLoop errored: {e}')
 
