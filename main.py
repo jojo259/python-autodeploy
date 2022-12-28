@@ -53,6 +53,10 @@ def createDirIfNotExist(dirPath):
 	if not os.path.exists(dirPath):
 		os.makedirs(dirPath)
 
+def printAndSendDiscord(printStr):
+	print(printStr)
+	discordsender.sendDiscord(f'```{printStr}```')
+
 # create directory to hold .env files if doesn't exist and todeploy.txt file
 
 createDirIfNotExist('envfiles')
@@ -62,6 +66,8 @@ if not os.path.exists('todeploy.txt'):
 		toDeployFile.write('repo-name,run command')
 	print('no todeploy.txt config file found. generated todeploy.txt\nplease edit and re-run program\nexiting')
 	exit()
+
+discordsender.sendDiscord(f'```autodeploy init```')
 
 # delete old temp directory if exists
 
@@ -82,21 +88,22 @@ with open('todeploy.txt', 'r') as toDeployFile:
 		curRepoDataSplit = curRepoData.split(',')
 		reposToDeploy[curRepoDataSplit[0]] = Repo(curRepoDataSplit[0], curRepoDataSplit[1])
 
-print(f'running {len(reposToDeploy)} repos')
+printAndSendDiscord(f'running {len(reposToDeploy)} repos')
 
 runningRepos = {}
 
 for curRepoName, curRepo in reposToDeploy.items():
-	print(f'pulling {curRepo.name}')
+
+	printAndSendDiscord(f'pulling repo {curRepo.name}')
 	curRepo.pull()
-	print(f'installing dependencies for {curRepo.name}')
+
+	printAndSendDiscord(f'installing dependencies for repo {curRepo.name}')
 	curRepo.getDeps()
-	print(f'running {curRepo.name}')
+
+	printAndSendDiscord(f'running repo {curRepo.name}')
 	curRepo.run()
 
-print('ran repos')
-
-discordsender.sendDiscord(f'```autodeploy started```')
+printAndSendDiscord(f'autodeploy starting')
 
 def doLoop():
 	try:
@@ -146,8 +153,7 @@ def doLoop():
 
 			logStr = f'git push detected for {repoName} at {curEvent.get("created_at", "[error: no time]")}: {commitsStr}'
 
-			print(logStr)
-			discordsender.sendDiscord(f'```{logStr}```')
+			printAndSendDiscord(logStr)
 
 			gitPulled = reposToDeploy[repoName].pull()
 
@@ -156,9 +162,7 @@ def doLoop():
 			runningRepos[repoName].kill()
 			reposToDeploy[repoName].run()
 	except Exception as e:
-		logStr = f'doLoop errored: {e}'
-		print(logStr)
-		discordsender.sendDiscord(logStr)
+		printAndSendDiscord(f'doLoop errored: {e}')
 
 while True:
 	doLoop()
