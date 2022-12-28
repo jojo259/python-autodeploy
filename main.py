@@ -23,9 +23,7 @@ class Repo:
 		depsCommand.wait()
 
 	def pull(self):
-		pullReqHeaders = {'Authorization': f'token {config.githubToken}'}
-
-		gotRepo = requests.get(f'https://api.github.com/repos/{config.githubUsername}/{self.name}/zipball', headers = pullReqHeaders)
+		gotRepo = requests.get(f'https://api.github.com/repos/{githubUsername}/{self.name}/zipball', headers = authorizationHeaders)
 
 		downloadPath = f'temp/repozips/{self.name}'
 		extractPath = f'temp/workingrepos/{self.name}'
@@ -60,7 +58,15 @@ def createDirIfNotExist(dirPath):
 
 def printAndSendDiscord(printStr):
 	print(printStr)
-	discordsender.sendDiscord(f'```{printStr}```')
+	if config.discordWebhookUrl != None and config.discordWebhookUrl != '':
+		discordsender.sendDiscord(f'```{printStr}```')
+
+authorizationHeaders = {'Authorization': f'token {config.githubToken}'}
+
+# get GitHub username
+
+userApiGot = requests.get('https://api.github.com/user', headers = authorizationHeaders).json()
+githubUsername = userApiGot['login']
 
 # create directory to hold .env files if doesn't exist and todeploy.txt file
 
@@ -128,9 +134,8 @@ def doLoop():
 
 		# check for pushes
 
-		reqHeaders = {'Authorization': f'token {config.githubToken}'}
 		try:
-			eventsApi = requests.get(f'https://api.github.com/users/{config.githubUsername}/events', headers = reqHeaders, timeout = 30).json()
+			eventsApi = requests.get(f'https://api.github.com/users/{githubUsername}/events', headers = authorizationHeaders, timeout = 30).json()
 		except Exception as e:
 			print(f'get api failed {e}')
 			return
