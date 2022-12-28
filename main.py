@@ -142,8 +142,6 @@ def doLoop():
 			if repoName not in runningRepos:
 				continue
 
-			deployedeventstorer.eventDeployed(curEvent.get('id', ''))
-
 			allCommits = []
 
 			for curCommit in curEvent.get('payload', {}).get('commits', []):
@@ -161,6 +159,9 @@ def doLoop():
 
 			runningRepos[repoName].kill()
 			reposToDeploy[repoName].run()
+
+			deployedeventstorer.eventDeployed(curEvent.get('id', ''))
+			
 	except Exception as e:
 		printAndSendDiscord(f'doLoop errored: {e}')
 
