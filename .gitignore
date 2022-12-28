@@ -2,3 +2,6 @@
 .env
 *.pyc
 todeploy.txt
+temp
+envfiles
+deployedevents.txt

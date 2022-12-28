@@ -3,13 +3,12 @@ import os
 import time
 import requests
 import signal
+import zipfile
+import shutil
 
 import config
 import discordsender
-
-deployedEventIds = {}
-
-newLineChar = '\n'
+import deployedeventstorer
 
 class Repo:
 	def __init__(self, name, runCmd):
@@ -17,44 +16,63 @@ class Repo:
 		self.runCmd = runCmd
 
 	def getWorkingDir(self):
-		return f'../{self.name}'
+		return 'temp/workingrepos/' + self.name + '/' + os.listdir(f'temp/workingrepos/{self.name}/')[0]
 
 	def getDeps(self):
 		depsCommand = subprocess.Popen(['pip', 'install', '-r', 'requirements.txt'], cwd = self.getWorkingDir())
 		depsCommand.wait()
 
 	def pull(self):
-		repoWorkingDir = self.getWorkingDir()
-		if not os.path.isdir(repoWorkingDir): # if repo directory doesn't already exist then clone instead of pulling
-			repoUrl = f'https://github.com/{config.githubUsername}/{self.name}'
-			return subprocess.check_output(['git', 'clone', repoUrl], cwd = f'../').decode('UTF-8')
-		return subprocess.check_output(['git', 'pull'], cwd = repoWorkingDir).decode('UTF-8')
+		pullReqHeaders = {'Authorization': f'token {config.githubToken}'}
+
+		gotRepo = requests.get(f'https://api.github.com/repos/{config.githubUsername}/{self.name}/zipball', headers = pullReqHeaders)
+
+		downloadPath = f'temp/repozips/{self.name}'
+		extractPath = f'temp/workingrepos/{self.name}'
+
+		# download repo zip file
+
+		with open(downloadPath, 'wb') as downloadedZip:
+			downloadedZip.write(gotRepo.content)
+
+		# unzip
+
+		with zipfile.ZipFile(downloadPath, 'r') as toUnzip:
+			toUnzip.extractall(extractPath)
+
+		# add .env file
+
+		envFilePath = f'envfiles/{self.name}.env'
+		if os.path.exists(envFilePath):
+			shutil.copy(envFilePath, self.getWorkingDir() + '/.env')
 
 	def run(self):
-		runningRepos[curRepo.name] = subprocess.Popen(self.runCmd, cwd = self.getWorkingDir(), stdout = subprocess.DEVNULL, shell = True, preexec_fn = os.setsid) # https://stackoverflow.com/questions/18962785/oserror-errno-2-no-such-file-or-directory-while-using-python-subprocess-wit
+		runningRepos[curRepo.name] = subprocess.Popen(self.runCmd.split(' '), cwd = self.getWorkingDir()) # https://stackoverflow.com/questions/18962785/oserror-errno-2-no-such-file-or-directory-while-using-python-subprocess-wit
 
-def sendDiscord(toSend):
-	def sendDiscordPart(partToSend):
-		url = config.discordWebhookUrl
-		data = {}
-		data["username"] = "autodeploy"
-		data["content"] = partToSend
-		
-		try:
-			requests.post(url, json = data, headers={"Content-Type": "application/json"}, timeout = 30)
-		except requests.exceptions.RequestException as e:
-			print(f'send discord failed probably timeout {e}')
+def createDirIfNotExist(dirPath):
+	if not os.path.exists(dirPath):
+		os.makedirs(dirPath)
 
-	toSend = str(toSend)
-	
-	for i in range(int(len(toSend) / 2000) + 1):
-		sendDiscordPart(toSend[i * 2000:i* 2000 + 2000])
+# create directory to hold .env files if doesn't exist and todeploy.txt file
+
+createDirIfNotExist('envfiles')
 
 if not os.path.exists('todeploy.txt'):
 	with open('todeploy.txt', 'w') as toDeployFile:
 		toDeployFile.write('repo-name,run command')
 	print('no todeploy.txt config file found. generated todeploy.txt\nplease edit and re-run program\nexiting')
 	exit()
+
+# delete old temp directory if exists
+
+if os.path.exists('temp'):
+	shutil.rmtree('temp')
+
+# create temp directory to hold repo files
+
+createDirIfNotExist('temp')
+createDirIfNotExist('temp/repozips')
+createDirIfNotExist('temp/workingrepos')
 
 reposToDeploy = {}
 
@@ -70,7 +88,7 @@ runningRepos = {}
 
 for curRepoName, curRepo in reposToDeploy.items():
 	print(f'pulling {curRepo.name}')
-	print(curRepo.pull())
+	curRepo.pull()
 	print(f'installing dependencies for {curRepo.name}')
 	curRepo.getDeps()
 	print(f'running {curRepo.name}')
@@ -78,11 +96,25 @@ for curRepoName, curRepo in reposToDeploy.items():
 
 print('ran repos')
 
-sendDiscord(f'```autodeploy started```')
+discordsender.sendDiscord(f'```autodeploy started```')
 
 def doLoop():
 	try:
+
 		time.sleep(60)
+
+		# check if any processes have terminated
+
+		for curRepoName, curRepo in runningRepos.items():
+
+			if curRepo.poll() != None:
+
+				# process has terminated, restart it
+
+				print(f'process terminated: {curRepoName}')
+				reposToDeploy[curRepoName].run()
+
+		# check for pushes
 
 		reqHeaders = {'Authorization': f'token {config.githubToken}'}
 		try:
@@ -91,11 +123,11 @@ def doLoop():
 			print(f'get api failed {e}')
 			return
 
-		for curEvent in list(reversed(eventsApi))[-5:]:
-			if curEvent.get('id', '') in deployedEventIds:
+		for curEvent in list(reversed(eventsApi))[-64:]:
+			if curEvent.get('type') != 'PushEvent':
 				continue
 
-			if curEvent.get('type') != 'PushEvent':
+			if deployedeventstorer.alreadyDeployed(curEvent.get('id', '')):
 				continue
 
 			repoName = curEvent.get('repo', {}).get('name', '').split("/")[1]
@@ -103,7 +135,7 @@ def doLoop():
 			if repoName not in runningRepos:
 				continue
 
-			deployedEventIds[curEvent.get('id', '')] = True
+			deployedeventstorer.eventDeployed(curEvent.get('id', ''))
 
 			allCommits = []
 
@@ -112,24 +144,21 @@ def doLoop():
 
 			commitsStr = '\n' + '\n'.join(allCommits)
 
-			logPre = f'git push detected for {repoName} at {curEvent.get("created_at", "[error: no time]")}: {commitsStr}'
+			logStr = f'git push detected for {repoName} at {curEvent.get("created_at", "[error: no time]")}: {commitsStr}'
 
-			print(logPre)
-			sendDiscord(f'```{logPre}```')
+			print(logStr)
+			discordsender.sendDiscord(f'```{logStr}```')
 
 			gitPulled = reposToDeploy[repoName].pull()
 
-			logPost = f'git push for {repoName} at {curEvent.get("created_at", "[error: no time]")}, git pull output:{newLineChar}{gitPulled}'
+			reposToDeploy[repoName].getDeps()
 
-			print(logPost)
-			sendDiscord(f'```{logPost}```')
-
-			curRepo.getDeps()
-
-			os.killpg(os.getpgid(runningRepos[repoName].pid), signal.SIGTERM)
+			runningRepos[repoName].kill()
 			reposToDeploy[repoName].run()
 	except Exception as e:
-		sendDiscord(f'doLoop errored: {e}')
+		logStr = f'doLoop errored: {e}'
+		print(logStr)
+		discordsender.sendDiscord(logStr)
 
 while True:
 	doLoop()
