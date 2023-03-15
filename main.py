@@ -75,10 +75,8 @@ class Repo:
 			gitPulled = self.pull()
 
 			printAndSendDiscord(f'installing dependencies for repo {self.name}')
-
 			self.getDeps()
 
-			self.runningRepo.kill()
 			printAndSendDiscord(f'running new process for repo {self.name}')
 			self.run()
 
