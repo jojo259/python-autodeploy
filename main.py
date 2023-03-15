@@ -12,7 +12,8 @@ import discordsender
 import deployedeventstorer
 
 class Repo:
-	def __init__(self, name, runCmd):
+	def __init__(self, owner, name, runCmd):
+		self.owner = owner
 		self.name = name
 		self.runCmd = runCmd
 		self.runningRepo = None
@@ -105,7 +106,7 @@ createDirIfNotExist('envfiles')
 
 if not os.path.exists('todeploy.txt'):
 	with open('todeploy.txt', 'w') as toDeployFile:
-		toDeployFile.write('repo-name,run command')
+		toDeployFile.write('repo-owner/repo-name,run command')
 	print('no todeploy.txt config file found. generated todeploy.txt\nplease edit and re-run program\nexiting')
 	exit()
 
@@ -128,7 +129,8 @@ with open('todeploy.txt', 'r') as toDeployFile:
 	reposData = toDeployFile.read().splitlines()
 	for curRepoData in reposData:
 		curRepoDataSplit = curRepoData.split(',')
-		reposToDeploy[curRepoDataSplit[0]] = Repo(curRepoDataSplit[0], curRepoDataSplit[1])
+		curRepoOwnerNameSplit = curRepoDataSplit[0].split('/')
+		reposToDeploy[curRepoDataSplit[0]] = Repo(curRepoOwnerNameSplit[0], curRepoOwnerNameSplit[1], curRepoDataSplit[1])
 
 printAndSendDiscord(f'running {len(reposToDeploy)} repos')
 

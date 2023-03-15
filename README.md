@@ -16,7 +16,7 @@ If any of your repositories require `.env` files for environment variables then 
 
 - Non-Python projects because it always runs the command `pip install -r requirements.txt`
 - Projects with conflicting dependencies because it doesn't use virtual environments
-- Projects from accounts other than the current user
+- Projects with identical names (from different users)
 
 ## To-do
 
