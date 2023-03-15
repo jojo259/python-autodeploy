@@ -5,6 +5,7 @@ import requests
 import signal
 import zipfile
 import shutil
+import traceback
 
 import config
 import discordsender
@@ -173,7 +174,8 @@ def doLoop():
 			deployedeventstorer.eventDeployed(curEvent.get('id', ''))
 
 	except Exception as e:
-		printAndSendDiscord(f'doLoop errored: {e}')
+		stackTraceStr = traceback.format_exc()
+		printAndSendDiscord(f'doLoop errored:\n{stackTraceStr}')
 
 while True:
 	doLoop()
