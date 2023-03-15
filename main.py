@@ -15,6 +15,7 @@ class Repo:
 	def __init__(self, name, runCmd):
 		self.name = name
 		self.runCmd = runCmd
+		self.runningRepo = None
 
 	def getWorkingDir(self):
 		return 'temp/workingrepos/' + self.name + '/' + os.listdir(f'temp/workingrepos/{self.name}/')[0]
@@ -51,7 +52,36 @@ class Repo:
 			shutil.copy(envFilePath, self.getWorkingDir() + '/.env')
 
 	def run(self):
-		runningRepos[curRepo.name] = subprocess.Popen(self.runCmd.split(' '), cwd = self.getWorkingDir()) # https://stackoverflow.com/questions/18962785/oserror-errno-2-no-such-file-or-directory-while-using-python-subprocess-wit
+		self.runningRepo = subprocess.Popen(self.runCmd.split(' '), cwd = self.getWorkingDir()) # https://stackoverflow.com/questions/18962785/oserror-errno-2-no-such-file-or-directory-while-using-python-subprocess-wit
+
+	def checkForNewCommit(self):
+		commitsApi = requests.get(f'https://api.github.com/repos/{githubUsername}/{self.name}/commits', headers = authorizationHeaders, timeout = 30).json()
+
+		for curCommit in list(reversed(commitsApi))[:64]:
+
+			commitSha = curCommit['sha']
+
+			if deployedeventstorer.alreadyDeployed(commitSha):
+				continue
+
+			commitMessage = curCommit['commit']['message']
+			commitTime = curCommit['commit']['committer']['date']
+
+			printAndSendDiscord(f'pulling commit detected for repo {self.name} at {commitTime}: {commitMessage}')
+
+			self.runningRepo.kill()
+
+			gitPulled = self.pull()
+
+			printAndSendDiscord(f'installing dependencies for repo {self.name}')
+
+			self.getDeps()
+
+			self.runningRepo.kill()
+			printAndSendDiscord(f'running new process for repo {self.name}')
+			self.run()
+
+			deployedeventstorer.eventDeployed(commitSha)
 
 def createDirIfNotExist(dirPath):
 	if not os.path.exists(dirPath):
@@ -102,8 +132,6 @@ with open('todeploy.txt', 'r') as toDeployFile:
 
 printAndSendDiscord(f'running {len(reposToDeploy)} repos')
 
-runningRepos = {}
-
 for curRepoName, curRepo in reposToDeploy.items():
 
 	printAndSendDiscord(f'pulling repo {curRepo.name}')
@@ -122,56 +150,21 @@ def doLoop():
 
 		time.sleep(60)
 
+		print('doing main loop')
+
 		# check if any processes have terminated
 
-		for curRepoName, curRepo in runningRepos.items():
+		for curRepoName, curRepo in reposToDeploy.items():
+			if curRepo.runningRepo != None:
+				if curRepo.runningRepo.poll() != None:
+					# process has terminated, restart it
+					print(f'process terminated: {curRepoName}')
+					reposToDeploy[curRepoName].run()
 
-			if curRepo.poll() != None:
+		# check for pushes from each repo
 
-				# process has terminated, restart it
-
-				print(f'process terminated: {curRepoName}')
-				reposToDeploy[curRepoName].run()
-
-		# check for pushes
-
-		try:
-			eventsApi = requests.get(f'https://api.github.com/users/{githubUsername}/events', headers = authorizationHeaders, timeout = 30).json()
-		except Exception as e:
-			print(f'get api failed {e}')
-			return
-
-		for curEvent in list(reversed(eventsApi))[-64:]:
-			if curEvent.get('type') != 'PushEvent':
-				continue
-
-			if deployedeventstorer.alreadyDeployed(curEvent.get('id', '')):
-				continue
-
-			repoName = curEvent.get('repo', {}).get('name', '').split("/")[1]
-
-			if repoName not in runningRepos:
-				continue
-
-			allCommits = []
-
-			for curCommit in curEvent.get('payload', {}).get('commits', []):
-				allCommits.append(' - ' + curCommit.get('message'))
-
-			commitsStr = '\n' + '\n'.join(allCommits)
-
-			logStr = f'git push detected for {repoName} at {curEvent.get("created_at", "[error: no time]")}: {commitsStr}'
-
-			printAndSendDiscord(logStr)
-
-			gitPulled = reposToDeploy[repoName].pull()
-
-			reposToDeploy[repoName].getDeps()
-
-			runningRepos[repoName].kill()
-			reposToDeploy[repoName].run()
-
-			deployedeventstorer.eventDeployed(curEvent.get('id', ''))
+		for curRepoName, curRepo in reposToDeploy.items():
+			curRepo.checkForNewCommit()
 
 	except Exception as e:
 		stackTraceStr = traceback.format_exc()
