@@ -146,29 +146,28 @@ for curRepoName, curRepo in reposToDeploy.items():
 printAndSendDiscord(f'autodeploy starting')
 
 def doLoop():
+
+	time.sleep(60)
+
+	print('doing main loop')
+
+	# check if any processes have terminated
+
+	for curRepoName, curRepo in reposToDeploy.items():
+		if curRepo.runningRepo != None:
+			if curRepo.runningRepo.poll() != None:
+				# process has terminated, restart it
+				print(f'process terminated: {curRepoName}')
+				reposToDeploy[curRepoName].run()
+
+	# check for pushes from each repo
+
+	for curRepoName, curRepo in reposToDeploy.items():
+		curRepo.checkForNewCommit()
+
+while True:
 	try:
-
-		time.sleep(60)
-
-		print('doing main loop')
-
-		# check if any processes have terminated
-
-		for curRepoName, curRepo in reposToDeploy.items():
-			if curRepo.runningRepo != None:
-				if curRepo.runningRepo.poll() != None:
-					# process has terminated, restart it
-					print(f'process terminated: {curRepoName}')
-					reposToDeploy[curRepoName].run()
-
-		# check for pushes from each repo
-
-		for curRepoName, curRepo in reposToDeploy.items():
-			curRepo.checkForNewCommit()
-
+		doLoop()
 	except Exception as e:
 		stackTraceStr = traceback.format_exc()
 		printAndSendDiscord(f'doLoop errored:\n{stackTraceStr}')
-
-while True:
-	doLoop()
