@@ -105,10 +105,10 @@ createDirIfNotExist('envfiles')
 if not os.path.exists('todeploy.txt'):
 	with open('todeploy.txt', 'w') as toDeployFile:
 		toDeployFile.write('repo-owner/repo-name,run command')
-	print('no todeploy.txt config file found. generated todeploy.txt\nplease edit and re-run program\nexiting')
+	printAndSendDiscord('no todeploy.txt config file found. generated todeploy.txt\nplease edit and re-run program\nexiting')
 	exit()
 
-discordsender.sendDiscord(f'```autodeploy init```')
+printAndSendDiscord(f'autodeploy init')
 
 # delete old temp directory if exists
 
@@ -155,9 +155,10 @@ def doLoop():
 
 	for curRepoName, curRepo in reposToDeploy.items():
 		if curRepo.runningRepo != None:
-			if curRepo.runningRepo.poll() != None:
+			repoPollCode = curRepo.runningRepo.poll()
+			if repoPollCode != None:
 				# process has terminated, restart it
-				print(f'process terminated: {curRepoName}')
+				printAndSendDiscord(f'process {curRepoName} terminated with poll code {pollCode}')
 				reposToDeploy[curRepoName].run()
 
 	# check for pushes from each repo
